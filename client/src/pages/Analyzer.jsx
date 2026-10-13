@@ -2,17 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { scanApi, urlApi } from '../api/index.js';
-import { Shield, Search, Eye, AlertTriangle, Lock, Send, Globe, Sparkles, ChevronRight, Copy, Check } from 'lucide-react';
+import {
+  Shield, Search, Eye, AlertTriangle, Lock, Send, Globe,
+  Sparkles, Copy, Check, ChevronRight
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
+/* ─── Modes ──────────────────────────────── */
 const MODES = [
-  { id: 'scam_check', label: 'Scam Check', icon: Shield, desc: 'Analyze messages for scam indicators' },
+  { id: 'scam_check',      label: 'Scam Check',   icon: Shield,   desc: 'Analyze messages for scam indicators' },
   { id: 'ai_prompt_check', label: 'AI Safe-Share', icon: Sparkles, desc: 'Check text before sharing with AI' },
-  { id: 'url_inspect', label: 'URL Inspector', icon: Globe, desc: 'Analyze URL structure (never visits)' },
+  { id: 'url_inspect',     label: 'URL Inspector', icon: Globe,    desc: 'Analyze URL structure (never visits)' },
 ];
-
 const INPUT_TYPES = ['sms', 'whatsapp', 'email', 'call_transcript', 'url', 'other'];
 
+/* ═══════════════════════════════════════════ */
 export default function Analyzer() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -25,13 +29,13 @@ export default function Analyzer() {
   const [saveSanitizedText, setSaveSanitizedText] = useState(true);
   const [contributeToRadar, setContributeToRadar] = useState(user?.contribute_to_radar ?? true);
 
-  // State
-  const [step, setStep] = useState(0); // 0: input, 1: preview, 2: result
+  const [step, setStep] = useState(0);
   const [redactPreview, setRedactPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [urlResult, setUrlResult] = useState(null);
 
+  /* ─── Handlers ──────────────────────────── */
   const handleScanPreview = async () => {
     if (mode === 'url_inspect') {
       setLoading(true);
@@ -41,15 +45,11 @@ export default function Analyzer() {
         setStep(2);
       } catch (err) {
         toast.error(err.response?.data?.error?.message || 'URL inspection failed');
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
       return;
     }
-
     if (text.trim().length < 20) {
-      toast.error('Text must be at least 20 characters');
-      return;
+      toast.error('Text must be at least 20 characters'); return;
     }
     setLoading(true);
     try {
@@ -57,10 +57,8 @@ export default function Analyzer() {
       setRedactPreview(data.data);
       setStep(1);
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Redaction preview failed');
-    } finally {
-      setLoading(false);
-    }
+      toast.error(err.response?.data?.error?.message || 'Scan failed');
+    } finally { setLoading(false); }
   };
 
   const handleFullAnalysis = async () => {
@@ -72,54 +70,71 @@ export default function Analyzer() {
       });
       setResult(data.data);
       setStep(2);
-      if (data.data.scanId) {
-        toast.success('Analysis complete! Scan saved.');
-      } else {
-        toast.success('Analysis complete!');
-      }
+      toast.success('Analysis complete');
     } catch (err) {
       toast.error(err.response?.data?.error?.message || 'Analysis failed');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const resetForm = () => { setStep(0); setRedactPreview(null); setResult(null); setUrlResult(null); };
+  const reset = () => {
+    setStep(0); setRedactPreview(null);
+    setResult(null); setUrlResult(null);
+  };
 
-  const riskBg = { low: 'risk-badge-low', medium: 'risk-badge-medium', high: 'risk-badge-high', critical: 'risk-badge-critical' };
+  const riskBadge = { low: 'risk-low', medium: 'risk-medium', high: 'risk-high', critical: 'risk-critical' };
+  const riskVerdict = {
+    low: '✓ Appears safe',
+    medium: '⚠ Suspicious — verify independently',
+    high: '⚠ Likely scam — do not engage',
+    critical: '⛔ Dangerous — do not respond',
+  };
 
+  /* ═══════════════════════════════════════════ */
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold text-white">Scam Analyzer</h1>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h1 className="display-sm text-text">Analyze</h1>
 
-      {/* Mode switch */}
+      {/* Mode tabs */}
       <div className="flex flex-wrap gap-2">
         {MODES.map(m => (
-          <button key={m.id} onClick={() => { setMode(m.id); resetForm(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-              mode === m.id ? 'bg-kavach-emerald/10 text-kavach-emerald border border-kavach-emerald/30' : 'bg-kavach-surface border border-kavach-border text-kavach-text-muted hover:text-kavach-text'
-            }`}>
+          <button key={m.id}
+            onClick={() => { setMode(m.id); reset(); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg
+              text-sm font-medium transition-colors border
+              ${mode === m.id
+                ? 'bg-emerald/8 text-emerald border-emerald/25'
+                : 'bg-surface border-border text-text-muted hover:text-text'
+              }`}>
             <m.icon className="w-4 h-4" /> {m.label}
           </button>
         ))}
       </div>
 
-      {/* Step 0: Input */}
+      {/* Stepper — only for non-URL modes */}
+      {mode !== 'url_inspect' && (
+        <div className="flex items-center gap-3 text-sm">
+          <StepDot num={1} label="Scan locally" active={step === 0} done={step > 0} />
+          <div className={`flex-1 h-px ${step > 0 ? 'bg-emerald/40' : 'bg-border'}`} />
+          <StepDot num={2} label="Full analysis" active={step === 1} done={step > 1} />
+        </div>
+      )}
+
+      {/* ─── Step 0: Input ────────────────── */}
       {step === 0 && (
-        <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border space-y-4">
+        <div className="rounded-xl bg-surface border border-border p-5 space-y-4">
           {mode !== 'url_inspect' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-kavach-text mb-1.5">Input Type</label>
+                <label className="block text-sm font-medium text-text mb-1.5">Source</label>
                 <select value={inputType} onChange={e => setInputType(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-kavach-bg border border-kavach-border rounded-lg text-kavach-text focus:outline-none focus:border-kavach-emerald/50">
+                  className="w-full px-3 py-2.5 bg-midnight border border-border rounded-lg text-text text-sm focus:outline-none focus:border-emerald/50">
                   {INPUT_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-kavach-text mb-1.5">Language</label>
+                <label className="block text-sm font-medium text-text mb-1.5">Language</label>
                 <select value={language} onChange={e => setLanguage(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-kavach-bg border border-kavach-border rounded-lg text-kavach-text focus:outline-none focus:border-kavach-emerald/50">
+                  className="w-full px-3 py-2.5 bg-midnight border border-border rounded-lg text-text text-sm focus:outline-none focus:border-emerald/50">
                   <option value="en">English</option>
                   <option value="te">Telugu</option>
                   <option value="hi">Hindi</option>
@@ -129,99 +144,84 @@ export default function Analyzer() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-kavach-text mb-1.5">
-              {mode === 'url_inspect' ? 'URL to Inspect' : 'Suspicious Content'}
+            <label className="block text-sm font-medium text-text mb-1.5">
+              {mode === 'url_inspect' ? 'URL to inspect' : 'Paste the message'}
             </label>
             <div className="relative">
               <textarea value={text} onChange={e => setText(e.target.value)}
-                placeholder={mode === 'url_inspect' ? 'https://example.com/suspicious-page' : 'Paste the suspicious message here (20-6000 characters)...'}
+                placeholder={mode === 'url_inspect'
+                  ? 'https://example.com/suspicious-page'
+                  : 'Paste a suspicious message here (20–6000 characters)…'}
                 rows={mode === 'url_inspect' ? 2 : 6} maxLength={6000}
-                className="w-full p-4 bg-kavach-bg border border-kavach-border rounded-xl text-kavach-text placeholder-kavach-text-muted/50 focus:outline-none focus:border-kavach-emerald/50 resize-none font-mono text-sm" />
+                className="w-full p-4 bg-midnight border border-border rounded-xl text-text text-sm font-['Noto_Sans'] placeholder:text-text-dim focus:outline-none focus:border-emerald/50 resize-none" />
               {mode !== 'url_inspect' && (
-                <span className="absolute bottom-3 right-3 text-xs text-kavach-text-muted">{text.length}/6000</span>
+                <span className="absolute bottom-3 right-3 text-xs text-text-dim">{text.length}/6000</span>
               )}
             </div>
           </div>
 
           {mode !== 'url_inspect' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <label className="flex items-center gap-2 text-sm text-kavach-text-muted cursor-pointer">
-                <input type="checkbox" checked={useAI} onChange={e => setUseAI(e.target.checked)}
-                  className="w-4 h-4 rounded border-kavach-border text-kavach-emerald focus:ring-kavach-emerald" />
-                Use AI analysis
-              </label>
-              <label className="flex items-center gap-2 text-sm text-kavach-text-muted cursor-pointer">
-                <input type="checkbox" checked={saveToHistory} onChange={e => setSaveToHistory(e.target.checked)}
-                  className="w-4 h-4 rounded border-kavach-border text-kavach-emerald focus:ring-kavach-emerald" />
-                Save to history
-              </label>
-              <label className="flex items-center gap-2 text-sm text-kavach-text-muted cursor-pointer">
-                <input type="checkbox" checked={saveSanitizedText} onChange={e => setSaveSanitizedText(e.target.checked)}
-                  className="w-4 h-4 rounded border-kavach-border text-kavach-emerald focus:ring-kavach-emerald" />
-                Save sanitized text
-              </label>
-              <label className="flex items-center gap-2 text-sm text-kavach-text-muted cursor-pointer">
-                <input type="checkbox" checked={contributeToRadar} onChange={e => setContributeToRadar(e.target.checked)}
-                  className="w-4 h-4 rounded border-kavach-border text-kavach-emerald focus:ring-kavach-emerald" />
-                Contribute to Threat Radar
-              </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                ['AI analysis', useAI, setUseAI],
+                ['Save to history', saveToHistory, setSaveToHistory],
+                ['Save sanitized text', saveSanitizedText, setSaveSanitizedText],
+                ['Contribute to Radar', contributeToRadar, setContributeToRadar],
+              ].map(([label, val, set]) => (
+                <label key={label} className="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+                  <input type="checkbox" checked={val} onChange={e => set(e.target.checked)}
+                    className="w-4 h-4 rounded border-border accent-emerald" />
+                  {label}
+                </label>
+              ))}
             </div>
           )}
 
-          <button onClick={handleScanPreview} disabled={loading || (mode === 'url_inspect' ? text.length < 10 : text.trim().length < 20)}
-            className="w-full py-3 bg-kavach-emerald hover:bg-kavach-emerald-dark disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
-            {loading ? <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white" /> Scanning...</>
-              : <><Eye className="w-5 h-5" /> {mode === 'url_inspect' ? 'Inspect URL' : 'Step 1: Scan & Preview'}</>}
+          <button onClick={handleScanPreview}
+            disabled={loading || (mode === 'url_inspect' ? text.length < 10 : text.trim().length < 20)}
+            className="w-full py-3 bg-emerald hover:bg-emerald-dim disabled:opacity-40 text-midnight font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+            {loading
+              ? <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-midnight" /> Scanning…</>
+              : <><Eye className="w-4 h-4" /> {mode === 'url_inspect' ? 'Inspect URL' : 'Step 1: Scan locally'}</>
+            }
           </button>
         </div>
       )}
 
-      {/* Step 1: Redaction Preview */}
+      {/* ─── Step 1: Redaction Preview ────── */}
       {step === 1 && redactPreview && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Lock className="w-5 h-5 text-kavach-saffron" /> Privacy Scan Complete
+        <div className="space-y-4">
+          <div className="rounded-xl bg-surface border border-border p-5">
+            <h2 className="display-sm text-text mb-4 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-saffron" /> Privacy scan complete
             </h2>
 
-            {Object.keys(redactPreview.piiSummary).length > 0 && (
-              <div className="mb-4 p-4 rounded-xl bg-kavach-saffron/10 border border-kavach-saffron/20">
-                <p className="text-sm font-semibold text-kavach-saffron mb-2">Sensitive Data Detected & Redacted:</p>
-                <div className="flex flex-wrap gap-2">
+            {/* PII chips */}
+            {Object.keys(redactPreview.piiSummary || {}).length > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-saffron/8 border border-saffron/15">
+                <p className="text-xs font-semibold text-saffron uppercase tracking-wider mb-2">Sensitive data detected &amp; redacted</p>
+                <div className="flex flex-wrap gap-1.5">
                   {Object.entries(redactPreview.piiSummary).map(([type, count]) => (
-                    <span key={type} className="px-3 py-1 rounded-full bg-kavach-saffron/20 text-kavach-saffron text-xs font-semibold">
-                      {type}: {count}
+                    <span key={type} className="px-2.5 py-1 rounded-md bg-saffron/15 text-saffron text-xs font-semibold border border-saffron/20">
+                      <Lock className="w-3 h-3 inline mr-0.5" />{type}: {count}
                     </span>
                   ))}
                 </div>
               </div>
             )}
 
-            {Object.keys(redactPreview.iocSummary).length > 0 && (
-              <div className="mb-4 p-4 rounded-xl bg-kavach-blue/10 border border-kavach-blue/20">
-                <p className="text-sm font-semibold text-kavach-blue mb-2">Indicators Pseudonymized:</p>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(redactPreview.iocSummary).map(([type, count]) => (
-                    <span key={type} className="px-3 py-1 rounded-full bg-kavach-blue/20 text-kavach-blue text-xs font-semibold">
-                      {type}: {count}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            {/* Side-by-side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-semibold text-kavach-text-muted mb-2 uppercase">Original Text</p>
-                <div className="p-3 rounded-lg bg-kavach-bg border border-kavach-border text-sm text-kavach-text font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Your original</p>
+                <div className="p-3 rounded-lg bg-midnight border border-border text-sm text-text font-['Noto_Sans'] whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
                   {text}
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold text-kavach-emerald mb-2 uppercase">Sanitized (what AI sees)</p>
-                <div className="p-3 rounded-lg bg-kavach-emerald/5 border border-kavach-emerald/20 text-sm text-kavach-text font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
-                  {redactPreview.sanitizedText}
+                <p className="text-xs font-semibold text-emerald uppercase tracking-wider mb-2">What AI receives</p>
+                <div className="p-3 rounded-lg bg-emerald/5 border border-emerald/15 text-sm text-text font-['Noto_Sans'] whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
+                  <AnnotatedText text={redactPreview.sanitizedText} />
                 </div>
               </div>
             </div>
@@ -229,192 +229,127 @@ export default function Analyzer() {
 
           <div className="flex gap-3">
             <button onClick={() => setStep(0)}
-              className="flex-1 py-3 border border-kavach-border hover:bg-kavach-surface-2 text-kavach-text font-medium rounded-xl transition-colors">
-              ← Back to Edit
+              className="flex-1 py-3 border border-border hover:bg-surface-2 text-text font-medium rounded-lg transition-colors text-sm">
+              ← Edit
             </button>
             <button onClick={handleFullAnalysis} disabled={loading}
-              className="flex-1 py-3 bg-kavach-emerald hover:bg-kavach-emerald-dark disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
-              {loading ? <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white" /> Analyzing...</>
-                : <><Send className="w-5 h-5" /> Step 2: Run Full Analysis</>}
+              className="flex-1 py-3 bg-emerald hover:bg-emerald-dim disabled:opacity-40 text-midnight font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+              {loading
+                ? <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-midnight" /> Analyzing…</>
+                : <><Send className="w-4 h-4" /> Step 2: Full analysis</>
+              }
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Result */}
+      {/* ─── Step 2: Result ───────────────── */}
       {step === 2 && (result || urlResult) && (
-        <div className="space-y-4 animate-fade-in">
-          {/* URL Result */}
-          {urlResult && (
-            <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white">URL Inspection Result</h2>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${riskBg[urlResult.riskLevel]}`}>
-                  {urlResult.riskLevel?.toUpperCase()} ({urlResult.riskScore}/100)
-                </span>
-              </div>
-              <p className="text-sm text-kavach-text-muted mb-4 font-mono">{urlResult.defanged}</p>
-              {urlResult.findings?.length > 0 ? (
-                <div className="space-y-2">
-                  {urlResult.findings.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-kavach-bg">
-                      <AlertTriangle className={`w-4 h-4 mt-0.5 ${f.severity === 'critical' ? 'text-kavach-red' : f.severity === 'high' ? 'text-risk-high' : 'text-kavach-saffron'}`} />
-                      <div>
-                        <p className="text-sm font-medium text-kavach-text">{f.label}</p>
-                        <p className="text-xs text-kavach-text-muted">{f.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-kavach-text-muted">No suspicious indicators found in URL structure.</p>
-              )}
-              <p className="text-xs text-kavach-text-muted mt-4 italic">{urlResult.disclaimer}</p>
-            </div>
-          )}
+        <div className="space-y-4">
+          {/* URL result */}
+          {urlResult && <UrlResultCard data={urlResult} riskBadge={riskBadge} />}
 
-          {/* Scan Result */}
+          {/* Scan result */}
           {result && (
-            <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Analysis Report</h2>
-                <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${riskBg[result.riskLevel]}`}>
-                  {result.riskLevel.toUpperCase()} RISK — {result.finalScore}/100
+            <div className="rounded-xl bg-surface border border-border p-5 space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <h2 className="display-sm text-text">Analysis report</h2>
+                <span className={`risk-badge ${riskBadge[result.riskLevel]}`}>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {result.riskLevel.toUpperCase()} — {result.finalScore}/100
                 </span>
               </div>
+
+              {/* Verdict */}
+              <p className={`text-sm font-semibold ${
+                result.finalScore >= 45 ? 'text-risk-high' : result.finalScore >= 20 ? 'text-saffron' : 'text-risk-low'
+              }`}>{riskVerdict[result.riskLevel]}</p>
 
               {/* Score breakdown */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="p-3 rounded-lg bg-kavach-bg text-center">
-                  <p className="text-2xl font-bold text-white">{result.ruleScore}</p>
-                  <p className="text-xs text-kavach-text-muted">Rule Score</p>
-                </div>
-                <div className="p-3 rounded-lg bg-kavach-bg text-center">
-                  <p className="text-2xl font-bold text-white">{result.aiAdjustment > 0 ? '+' : ''}{result.aiAdjustment}</p>
-                  <p className="text-xs text-kavach-text-muted">AI Adjustment</p>
-                </div>
-                <div className="p-3 rounded-lg bg-kavach-bg text-center">
-                  <p className={`text-2xl font-bold ${result.finalScore >= 45 ? 'text-kavach-red' : result.finalScore >= 20 ? 'text-kavach-saffron' : 'text-risk-low'}`}>{result.finalScore}</p>
-                  <p className="text-xs text-kavach-text-muted">Final Score</p>
-                </div>
+              <div className="grid grid-cols-3 gap-3">
+                <ScoreBox label="Rule score" value={result.ruleScore} />
+                <ScoreBox label="AI adjust" value={result.aiAdjustment > 0 ? `+${result.aiAdjustment}` : result.aiAdjustment} />
+                <ScoreBox label="Final" value={result.finalScore}
+                  accent={result.finalScore >= 45 ? 'text-risk-high' : result.finalScore >= 20 ? 'text-saffron' : 'text-risk-low'} />
               </div>
 
-              {/* Agreement */}
-              {result.aiUsed && (
-                <div className={`p-3 rounded-lg mb-4 text-sm ${
-                  result.agreement === 'agree' ? 'bg-risk-low/10 text-risk-low' :
-                  result.agreement === 'partial' ? 'bg-kavach-saffron/10 text-kavach-saffron' :
-                  result.agreement === 'disagree' ? 'bg-kavach-red/10 text-kavach-red' : 'bg-kavach-surface-2 text-kavach-text-muted'
-                }`}>
-                  <strong>Agreement:</strong> {result.agreement === 'agree' ? '✓ Rules and AI agree' :
-                    result.agreement === 'partial' ? '~ Partial agreement — exercise caution' :
-                    result.agreement === 'disagree' ? '✗ Rules and AI disagree — exercise extra caution' : 'AI not used'}
-                </div>
-              )}
-
-              {!result.aiUsed && (
-                <div className="p-3 rounded-lg mb-4 bg-kavach-surface-2 text-kavach-text-muted text-sm">
-                  ℹ️ AI analysis not used. Showing rule-based assessment only.
-                </div>
-              )}
-
-              {/* Rule findings */}
-              {result.ruleFindings?.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-kavach-text-muted mb-3 uppercase">Risk Indicators</h3>
-                  <div className="space-y-2">
+              {/* Rule findings with bars */}
+              {result.ruleFindings?.filter(f => f.weight > 0).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Risk indicators</h3>
+                  <div className="space-y-3">
                     {result.ruleFindings.filter(f => f.weight > 0).map((f, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-kavach-bg">
-                        <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${f.weight >= 25 ? 'text-kavach-red' : f.weight >= 15 ? 'text-risk-high' : 'text-kavach-saffron'}`} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-kavach-text">{f.label}</p>
-                            <span className="text-xs text-kavach-text-muted">+{f.weight}</span>
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={`w-3.5 h-3.5 ${f.weight >= 25 ? 'text-red' : 'text-saffron'}`} />
+                            <span className="text-sm text-text">{f.label}</span>
                           </div>
-                          <p className="text-xs text-kavach-text-muted mt-0.5">{f.explanation}</p>
+                          <span className="text-xs text-text-muted font-mono">+{f.weight}</span>
                         </div>
+                        <div className="h-1.5 rounded-full bg-border">
+                          <div className={`h-full rounded-full ${f.weight >= 25 ? 'bg-red' : 'bg-saffron'}`}
+                            style={{ width: `${Math.min((f.weight / 30) * 100, 100)}%` }} />
+                        </div>
+                        <p className="text-xs text-text-dim mt-0.5">{f.explanation}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* AI Red Flags */}
+              {/* AI red flags */}
               {result.aiAnalysis?.red_flags?.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-kavach-text-muted mb-3 uppercase">AI-Detected Red Flags</h3>
-                  <div className="space-y-2">
-                    {result.aiAnalysis.red_flags.map((f, i) => (
-                      <div key={i} className="p-3 rounded-lg bg-kavach-red/5 border border-kavach-red/10">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-kavach-text">{f.label}</span>
-                          {f.grounded && <span className="px-1.5 py-0.5 rounded text-[10px] bg-risk-low/20 text-risk-low font-semibold">GROUNDED</span>}
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-kavach-purple/20 text-kavach-purple font-semibold">{f.tactic}</span>
-                        </div>
-                        <p className="text-xs text-kavach-text-muted italic">"{f.evidence_quote}"</p>
-                        <p className="text-xs text-kavach-text-muted mt-1">{f.why_it_matters}</p>
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">AI red flags</h3>
+                  {result.aiAnalysis.red_flags.map((f, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-red/5 border border-red/10 mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-text">{f.label}</span>
+                        {f.grounded && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald/10 text-emerald font-semibold">✓ verified in text</span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Summary */}
-              {result.aiAnalysis?.simple_explanation && (
-                <div className="mb-6 p-4 rounded-lg bg-kavach-surface-2">
-                  <h3 className="text-sm font-semibold text-kavach-text-muted mb-2">Explanation</h3>
-                  <p className="text-sm text-kavach-text">{result.aiAnalysis.simple_explanation}</p>
+                      <p className="text-xs text-text-muted italic">"{f.evidence_quote}"</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* Actions */}
               {result.aiAnalysis?.recommended_actions?.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-kavach-text-muted mb-2">Recommended Actions</h3>
-                  <div className="space-y-1">
-                    {result.aiAnalysis.recommended_actions.map((a, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm text-kavach-text">
-                        <span className="w-5 h-5 rounded-full bg-kavach-emerald/10 text-kavach-emerald text-xs flex items-center justify-center flex-shrink-0 mt-0.5">{a.priority}</span>
-                        {a.action}
-                      </div>
-                    ))}
-                  </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Recommended actions</h3>
+                  {result.aiAnalysis.recommended_actions.map((a, i) => (
+                    <p key={i} className="text-sm text-text mb-1">
+                      <span className="inline-flex w-5 h-5 rounded-full bg-emerald/10 text-emerald text-xs items-center justify-center mr-2">{a.priority}</span>
+                      {a.action}
+                    </p>
+                  ))}
                 </div>
               )}
 
-              {/* Do Not */}
-              {result.aiAnalysis?.do_not?.length > 0 && (
-                <div className="mb-6 p-4 rounded-lg bg-kavach-red/5 border border-kavach-red/10">
-                  <h3 className="text-sm font-semibold text-kavach-red mb-2">⛔ Do NOT</h3>
-                  <ul className="space-y-1 text-sm text-kavach-text">
-                    {result.aiAnalysis.do_not.map((d, i) => <li key={i}>• {d}</li>)}
-                  </ul>
-                </div>
-              )}
-
-              {/* Family Alert */}
+              {/* Family alert */}
               {result.aiAnalysis?.family_alert_message && (
                 <FamilyAlert message={result.aiAnalysis.family_alert_message} />
               )}
 
-              {/* Disclaimer */}
-              <p className="text-xs text-kavach-text-muted mt-4 italic">{result.disclaimer}</p>
+              <p className="text-xs text-text-dim italic">{result.disclaimer}</p>
 
-              {/* Navigate to full report if saved */}
               {result.scanId && (
-                <div className="mt-4 pt-4 border-t border-kavach-border flex gap-3">
+                <div className="pt-3 border-t border-border">
                   <button onClick={() => navigate(`/app/scans/${result.scanId}`)}
-                    className="px-4 py-2 text-sm bg-kavach-emerald/10 text-kavach-emerald border border-kavach-emerald/20 rounded-lg hover:bg-kavach-emerald/20 transition-colors">
-                    View Full Report →
+                    className="px-4 py-2 text-sm bg-emerald/8 text-emerald border border-emerald/20 rounded-lg hover:bg-emerald/15 transition-colors">
+                    View full report →
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          <button onClick={resetForm}
-            className="w-full py-3 border border-kavach-border hover:bg-kavach-surface text-kavach-text font-medium rounded-xl transition-colors">
-            ← Analyze Another Message
+          <button onClick={reset}
+            className="w-full py-3 border border-border hover:bg-surface text-text font-medium rounded-lg transition-colors text-sm">
+            ← Analyze another message
           </button>
         </div>
       )}
@@ -422,34 +357,93 @@ export default function Analyzer() {
   );
 }
 
+/* ─── Helpers ─────────────────────────────── */
+function StepDot({ num, label, active, done }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border transition-colors
+        ${done ? 'bg-emerald/15 border-emerald/30 text-emerald'
+          : active ? 'bg-emerald/10 border-emerald/40 text-emerald'
+          : 'bg-surface border-border text-text-dim'}`}>
+        {done ? <Check className="w-3.5 h-3.5" /> : num}
+      </div>
+      <span className={`text-xs font-medium hidden sm:inline ${active || done ? 'text-emerald' : 'text-text-dim'}`}>{label}</span>
+    </div>
+  );
+}
+
+function ScoreBox({ label, value, accent }) {
+  return (
+    <div className="p-3 rounded-lg bg-midnight border border-border text-center">
+      <p className={`text-xl font-['Sora'] font-bold ${accent || 'text-text'}`}>{value}</p>
+      <p className="text-xs text-text-dim">{label}</p>
+    </div>
+  );
+}
+
+function AnnotatedText({ text }) {
+  const parts = text.split(/(\[[A-Z_0-9]+\])/g);
+  return (
+    <span className="whitespace-pre-wrap">
+      {parts.map((p, i) =>
+        /^\[.*\]$/.test(p) ? (
+          <span key={i} className="inline-flex items-center gap-0.5 px-1 py-0.5 mx-0.5 rounded bg-saffron/20 text-saffron text-[11px] font-semibold align-baseline">
+            <Lock className="w-2.5 h-2.5" />{p}
+          </span>
+        ) : <span key={i}>{p}</span>
+      )}
+    </span>
+  );
+}
+
 function FamilyAlert({ message }) {
   const [copied, setCopied] = useState(false);
-
-  const copyAlert = () => {
-    navigator.clipboard.writeText(message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shareWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-  };
+  const copy = () => { navigator.clipboard.writeText(message); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   return (
-    <div className="p-4 rounded-lg bg-kavach-emerald/5 border border-kavach-emerald/20">
-      <h3 className="text-sm font-semibold text-kavach-emerald mb-2">📢 Family Alert</h3>
-      <p className="text-sm text-kavach-text mb-3">{message}</p>
+    <div className="p-4 rounded-lg bg-emerald/5 border border-emerald/15">
+      <h3 className="text-sm font-semibold text-emerald mb-2">📢 Family alert</h3>
+      <p className="text-sm text-text mb-3">{message}</p>
       <div className="flex gap-2">
-        <button onClick={copyAlert}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-kavach-surface border border-kavach-border text-xs text-kavach-text-muted hover:text-kavach-text transition-colors">
-          {copied ? <Check className="w-3 h-3 text-risk-low" /> : <Copy className="w-3 h-3" />}
-          {copied ? 'Copied!' : 'Copy'}
+        <button onClick={copy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-muted hover:text-text transition-colors">
+          {copied ? <><Check className="w-3 h-3 text-emerald" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
         </button>
-        <button onClick={shareWhatsApp}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600/10 border border-green-600/20 text-xs text-green-400 hover:bg-green-600/20 transition-colors">
-          Share via WhatsApp
-        </button>
+        <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-700/15 border border-green-700/25 text-xs text-green-400">
+          WhatsApp
+        </a>
       </div>
+    </div>
+  );
+}
+
+function UrlResultCard({ data, riskBadge }) {
+  return (
+    <div className="rounded-xl bg-surface border border-border p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="display-sm text-text">URL inspection</h2>
+        <span className={`risk-badge ${riskBadge[data.riskLevel]}`}>
+          <AlertTriangle className="w-3.5 h-3.5" />
+          {data.riskLevel?.toUpperCase()} — {data.riskScore}/100
+        </span>
+      </div>
+      <p className="text-sm text-text-muted font-mono mb-4">{data.defanged}</p>
+      {data.findings?.length > 0 ? (
+        <div className="space-y-2">
+          {data.findings.map((f, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-midnight">
+              <AlertTriangle className={`w-4 h-4 mt-0.5 ${f.severity === 'critical' ? 'text-red' : 'text-saffron'}`} />
+              <div>
+                <p className="text-sm font-medium text-text">{f.label}</p>
+                <p className="text-xs text-text-muted">{f.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-text-muted">No suspicious indicators found.</p>
+      )}
+      <p className="text-xs text-text-dim mt-4 italic">{data.disclaimer}</p>
     </div>
   );
 }

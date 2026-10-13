@@ -5,9 +5,9 @@ import { Lock, Download, Trash2, Shield, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PrivacyCenter() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [deletePassword, setDeletePassword] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -17,12 +17,10 @@ export default function PrivacyCenter() {
       const { data } = await userApi.exportData();
       const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      const a = document.createElement('a'); a.href = url;
       a.download = `kavachai-export-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Data exported successfully');
+      a.click(); URL.revokeObjectURL(url);
+      toast.success('Exported');
     } catch { toast.error('Export failed'); }
     finally { setExporting(false); }
   };
@@ -32,81 +30,65 @@ export default function PrivacyCenter() {
     setDeleting(true);
     try {
       await userApi.deleteAccount({ password: deletePassword });
-      toast.success('Account deleted. Goodbye.');
-      logout();
-    } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Deletion failed');
-    } finally { setDeleting(false); }
+      toast.success('Account deleted'); logout();
+    } catch (err) { toast.error(err.response?.data?.error?.message || 'Failed'); }
+    finally { setDeleting(false); }
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Lock className="w-6 h-6" /> Privacy Center</h1>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h1 className="display-sm text-text">Privacy Center</h1>
 
-      {/* Privacy Promise */}
-      <div className="p-6 rounded-2xl bg-kavach-emerald/5 border border-kavach-emerald/20">
-        <h2 className="text-lg font-semibold text-kavach-emerald mb-3 flex items-center gap-2"><Shield className="w-5 h-5" /> Our Privacy Promise</h2>
-        <ul className="space-y-2 text-sm text-kavach-text">
-          <li>• <strong>Your data stays yours.</strong> We never sell, share, or use your data for advertising.</li>
-          <li>• <strong>PII is redacted before AI analysis.</strong> Sensitive data like Aadhaar, PAN, card numbers are never sent to AI.</li>
-          <li>• <strong>History is opt-in.</strong> You control whether scans are saved.</li>
-          <li>• <strong>Threat Radar uses only hashes.</strong> No message text is stored in the community radar.</li>
+      <div className="rounded-xl bg-emerald/5 border border-emerald/15 p-5">
+        <h2 className="font-['Sora'] font-semibold text-emerald mb-3 flex items-center gap-2"><Shield className="w-5 h-5" /> Our promise</h2>
+        <ul className="space-y-2 text-sm text-text">
+          <li>• <strong>Your data stays yours.</strong> Never sold, shared, or used for ads.</li>
+          <li>• <strong>PII redacted before AI.</strong> Aadhaar, PAN, cards, OTP — never sent to Gemini.</li>
+          <li>• <strong>History is opt-in.</strong> You control what's saved.</li>
+          <li>• <strong>Radar uses hashes only.</strong> No text stored in community data.</li>
           <li>• <strong>Export or delete anytime.</strong> Your data, your control.</li>
-          <li>• <strong>No third-party trackers.</strong> We don't use analytics or tracking pixels.</li>
         </ul>
       </div>
 
-      {/* Data Retention */}
-      <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border">
-        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2"><Info className="w-5 h-5 text-kavach-blue" /> Data Retention</h2>
-        <div className="space-y-2 text-sm text-kavach-text-muted">
-          <p>• <strong>Scan history:</strong> Stored until you delete it. Only sanitized text is saved (if you opt in).</p>
-          <p>• <strong>Threat signals:</strong> Anonymous hash-based fingerprints. These remain as aggregate data even after account deletion, since they contain no personal information.</p>
-          <p>• <strong>Account data:</strong> Deleted immediately upon account deletion. Cascades to scans, feedback, and drill attempts.</p>
-          <p>• <strong>Audit logs:</strong> User reference set to null upon account deletion. Action records retained for security.</p>
+      <div className="rounded-xl bg-surface border border-border p-5">
+        <h2 className="font-['Sora'] font-semibold text-text mb-3 flex items-center gap-2"><Info className="w-5 h-5 text-blue" /> Data retention</h2>
+        <div className="space-y-2 text-sm text-text-muted">
+          <p>• <strong>Scans:</strong> Until you delete. Only sanitized text saved (if opted in).</p>
+          <p>• <strong>Signals:</strong> Anonymous hashes remain as aggregates after account deletion.</p>
+          <p>• <strong>Account:</strong> Deleted immediately. Cascades to scans, feedback, drills.</p>
         </div>
       </div>
 
-      {/* Export */}
-      <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border">
-        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2"><Download className="w-5 h-5 text-kavach-cyan" /> Export Your Data</h2>
-        <p className="text-sm text-kavach-text-muted mb-4">Download all your data as a JSON file: profile, scans, feedback, and drill attempts.</p>
+      <div className="rounded-xl bg-surface border border-border p-5">
+        <h2 className="font-['Sora'] font-semibold text-text mb-3 flex items-center gap-2"><Download className="w-5 h-5 text-cyan" /> Export data</h2>
+        <p className="text-sm text-text-muted mb-4">Download all your data as JSON.</p>
         <button onClick={handleExport} disabled={exporting}
-          className="px-4 py-2.5 bg-kavach-cyan/10 border border-kavach-cyan/20 text-kavach-cyan font-medium rounded-lg hover:bg-kavach-cyan/20 transition-colors text-sm flex items-center gap-2">
-          <Download className="w-4 h-4" /> {exporting ? 'Exporting...' : 'Download My Data'}
+          className="px-4 py-2.5 bg-cyan/8 border border-cyan/20 text-cyan font-medium rounded-lg hover:bg-cyan/15 transition-colors text-sm flex items-center gap-2">
+          <Download className="w-4 h-4" /> {exporting ? 'Exporting…' : 'Download'}
         </button>
       </div>
 
-      {/* Delete Account */}
-      <div className="p-6 rounded-2xl bg-kavach-surface border border-kavach-red/20">
-        <h2 className="text-lg font-semibold text-kavach-red mb-3 flex items-center gap-2"><Trash2 className="w-5 h-5" /> Delete Account</h2>
-        <p className="text-sm text-kavach-text-muted mb-4">Permanently delete your account and all associated data. This cannot be undone.</p>
-        
-        {!showDeleteConfirm ? (
-          <button onClick={() => setShowDeleteConfirm(true)}
-            className="px-4 py-2.5 bg-kavach-red/10 border border-kavach-red/20 text-kavach-red font-medium rounded-lg hover:bg-kavach-red/20 transition-colors text-sm">
-            I want to delete my account
+      <div className="rounded-xl bg-surface border border-red/15 p-5">
+        <h2 className="font-['Sora'] font-semibold text-red mb-3 flex items-center gap-2"><Trash2 className="w-5 h-5" /> Delete account</h2>
+        <p className="text-sm text-text-muted mb-4">Permanently delete your account and all data.</p>
+        {!showDelete ? (
+          <button onClick={() => setShowDelete(true)}
+            className="px-4 py-2.5 bg-red/8 border border-red/20 text-red font-medium rounded-lg hover:bg-red/15 transition-colors text-sm">
+            Delete my account
           </button>
         ) : (
-          <div className="space-y-3 p-4 rounded-lg bg-kavach-red/5 border border-kavach-red/10">
-            <p className="text-sm text-kavach-red font-semibold">⚠️ This will permanently delete:</p>
-            <ul className="text-sm text-kavach-text-muted list-disc list-inside">
-              <li>Your account and profile</li>
-              <li>All scan history and reports</li>
-              <li>All feedback and drill attempts</li>
-            </ul>
+          <div className="space-y-3 p-4 rounded-lg bg-red/5 border border-red/10">
+            <p className="text-sm text-red font-semibold">⚠ This will permanently delete your account, scans, and feedback.</p>
             <input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
-              placeholder="Enter your password to confirm"
-              className="w-full px-3 py-2.5 bg-kavach-bg border border-kavach-border rounded-lg text-kavach-text text-sm focus:outline-none focus:border-kavach-red/50" />
+              placeholder="Confirm with your password"
+              className="w-full px-3 py-2.5 bg-midnight border border-border rounded-lg text-text text-sm focus:outline-none focus:border-red/50" />
             <div className="flex gap-3">
               <button onClick={handleDelete} disabled={deleting || !deletePassword}
-                className="px-4 py-2 bg-kavach-red hover:bg-kavach-red-dark disabled:opacity-50 text-white font-medium rounded-lg text-sm">
-                {deleting ? 'Deleting...' : 'Permanently Delete'}
+                className="px-4 py-2 bg-red hover:bg-red/80 disabled:opacity-40 text-white font-medium rounded-lg text-sm">
+                {deleting ? 'Deleting…' : 'Permanently delete'}
               </button>
-              <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
-                className="px-4 py-2 bg-kavach-surface border border-kavach-border text-kavach-text-muted rounded-lg text-sm">
-                Cancel
-              </button>
+              <button onClick={() => { setShowDelete(false); setDeletePassword(''); }}
+                className="px-4 py-2 bg-surface border border-border text-text-muted rounded-lg text-sm">Cancel</button>
             </div>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Lock, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -9,7 +9,6 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -17,70 +16,126 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      toast.success('Welcome back!');
       navigate('/app');
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Login failed');
+      const msg = err.response?.data?.error?.message
+                  || 'Login failed';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-kavach-bg px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-4">
-            <Shield className="w-10 h-10 text-kavach-emerald" />
-            <span className="text-2xl font-bold gradient-text">KavachAI</span>
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
-          <p className="text-kavach-text-muted mt-1">Sign in to your account</p>
+    <div className="min-h-screen bg-midnight grid grid-cols-1
+                    lg:grid-cols-2">
+      {/* Brand panel */}
+      <div className="hidden lg:flex flex-col justify-center
+                      px-12 xl:px-20 bg-surface/60">
+        <Link to="/" className="flex items-center gap-2 mb-12">
+          <Shield className="w-8 h-8 text-emerald" />
+          <span className="font-['Sora'] text-xl font-bold text-text">
+            KavachAI
+          </span>
+        </Link>
+        <h2 className="display-md text-text mb-4">
+          Check before you click,<br />share, or pay.
+        </h2>
+        <div className="space-y-3 mt-6">
+          <div className="flex items-start gap-3">
+            <Lock className="w-5 h-5 text-emerald mt-0.5
+                            flex-shrink-0" />
+            <p className="text-sm text-text-muted">
+              Your data is redacted before any AI sees it.
+              Aadhaar, PAN, OTP, phone numbers — all replaced
+              with safe placeholders.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <Shield className="w-5 h-5 text-emerald mt-0.5
+                              flex-shrink-0" />
+            <p className="text-sm text-text-muted">
+              Export or delete your data at any time.
+              We never sell, share, or use your data
+              for advertising.
+            </p>
+          </div>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="p-6 rounded-2xl bg-kavach-surface border border-kavach-border space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-kavach-text mb-1.5">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 bg-kavach-bg border border-kavach-border rounded-lg text-kavach-text placeholder-kavach-text-muted/50 focus:outline-none focus:border-kavach-emerald/50"
-              placeholder="you@example.com"
-            />
+      {/* Form panel */}
+      <div className="flex items-center justify-center px-5 py-12">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden flex items-center gap-2 mb-8">
+            <Link to="/" className="flex items-center gap-2">
+              <Shield className="w-7 h-7 text-emerald" />
+              <span className="font-['Sora'] text-lg font-bold
+                              text-text">
+                KavachAI
+              </span>
+            </Link>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-kavach-text mb-1.5">Password</label>
-            <div className="relative">
-              <input
-                type={showPass ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 bg-kavach-bg border border-kavach-border rounded-lg text-kavach-text placeholder-kavach-text-muted/50 focus:outline-none focus:border-kavach-emerald/50 pr-10"
-                placeholder="Enter your password"
-              />
-              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-kavach-text-muted hover:text-kavach-text">
-                {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+          <h1 className="display-sm text-text mb-1">
+            Sign in
+          </h1>
+          <p className="text-text-muted text-sm mb-8">
+            Don't have an account?{' '}
+            <Link to="/register"
+              className="text-emerald hover:underline">
+              Create one
+            </Link>
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email"
+                className="block text-sm font-medium text-text mb-1.5">
+                Email
+              </label>
+              <input id="email" type="email" required
+                autoComplete="email" value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface
+                          border border-border rounded-lg
+                          text-text text-sm
+                          placeholder:text-text-dim
+                          focus:outline-none
+                          focus:border-emerald/50
+                          transition-colors"
+                placeholder="you@example.com" />
             </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-kavach-emerald hover:bg-kavach-emerald-dark disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-kavach-text-muted mt-4">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-kavach-emerald hover:underline font-medium">Create one</Link>
-        </p>
+            <div>
+              <label htmlFor="password"
+                className="block text-sm font-medium text-text mb-1.5">
+                Password
+              </label>
+              <input id="password" type="password" required
+                autoComplete="current-password" value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface
+                          border border-border rounded-lg
+                          text-text text-sm
+                          placeholder:text-text-dim
+                          focus:outline-none
+                          focus:border-emerald/50
+                          transition-colors"
+                placeholder="••••••••••" />
+            </div>
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 bg-emerald hover:bg-emerald-dim
+                        disabled:opacity-50 text-midnight
+                        font-semibold rounded-lg transition-colors
+                        flex items-center justify-center gap-2
+                        text-sm">
+              {loading
+                ? <div className="animate-spin rounded-full
+                                 h-4 w-4 border-t-2 border-midnight" />
+                : <><ArrowRight className="w-4 h-4" /> Sign in</>
+              }
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

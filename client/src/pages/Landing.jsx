@@ -1,297 +1,859 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Eye, Brain, Users, Lock, ChevronRight, AlertTriangle, CheckCircle, Zap, ArrowRight } from 'lucide-react';
+import { Shield, Copy, Check, ArrowDown, ChevronRight,
+         AlertTriangle, Phone, Lock, Eye, Share2, Download,
+         ExternalLink } from 'lucide-react';
 import { demoApi } from '../api/index.js';
 import toast from 'react-hot-toast';
 
-const SYNTHETIC_SAMPLES = [
+/* ───────────────────────────────────────────
+   Synthetic samples — all fabricated
+   ─────────────────────────────────────────── */
+const SAMPLES = [
   {
-    label: '🔴 KYC Phishing SMS',
-    text: 'Dear Customer, Your SBI account will be BLOCKED in 24 hours due to incomplete KYC. Update now: http://sbi-kyc-update.xyz/verify. Call 9876543210. -SBI Team',
+    id: 'kyc',
+    label: 'Fake KYC SMS',
+    text: 'Dear Customer, Your SBI account will be BLOCKED in 24 hours due to incomplete KYC. Update now: http://sbi-kyc-update.xyz/verify. For help call 9876543210. Your OTP is 847291. Do not share. -SBI Team',
     inputType: 'sms',
+    isScam: true,
   },
   {
-    label: '🔴 Digital Arrest Call',
-    text: 'This is Inspector Sharma from CBI Cyber Crime. Your Aadhaar has been linked to money laundering. Stay on this video call. Do not tell anyone. Transfer Rs 50000 to the RBI safe account.',
-    inputType: 'call_transcript',
-  },
-  {
-    label: '🔴 UPI Collect Scam',
-    text: 'Hi I accidentally sent Rs 5000 to your number. Please return it by approving this collect request. Enter your UPI PIN to send it back. My family urgently needs this.',
-    inputType: 'whatsapp',
-  },
-  {
-    label: '🟢 Bank Alert (Legit)',
+    id: 'legit',
+    label: 'Bank alert (legitimate)',
     text: 'Rs 2,500.00 debited from A/c XX4523 on 15-Oct. UPI Ref: 428176234523. If not done by you, call 1800-111-1111 (bank toll-free). Never share OTP with anyone. -YourBank',
     inputType: 'sms',
+    isScam: false,
+  },
+  {
+    id: 'upi',
+    label: 'UPI refund scam',
+    text: 'Hi, I accidentally sent Rs 5000 to your number. Please check and return it. I am sending a collect request, just approve it and enter your UPI PIN. My family urgently needs this money.',
+    inputType: 'whatsapp',
+    isScam: true,
   },
 ];
 
-const FEATURES = [
-  { icon: Eye, title: 'Privacy Guard', desc: 'Detects and redacts sensitive data before any AI analysis. You see what gets sent.' },
-  { icon: Brain, title: 'Explainable AI', desc: 'Every red flag backed by evidence from the actual text. No black-box verdicts.' },
-  { icon: Shield, title: 'Rule + AI Engine', desc: 'Deterministic rules ensure reliability. AI adds nuance within strict bounds.' },
-  { icon: Lock, title: 'Your Data, Your Choice', desc: 'Opt-in history, export everything, delete anytime. No third-party trackers.' },
-  { icon: Users, title: 'Community Radar', desc: 'Anonymous threat signals help everyone. Only hash-based aggregates, never raw data.' },
-  { icon: Zap, title: 'Family Alerts', desc: 'Generate shareable warnings in English, Hindi, or Telugu to protect your family.' },
-];
+/* Pre-computed fallback for the KYC sample */
+const FALLBACK_RESULT = {
+  riskLevel: 'high',
+  finalScore: 72,
+  ruleScore: 72,
+  aiUsed: false,
+  scamCategory: 'kyc_phishing',
+  piiSummary: { phone: 1, otp: 1 },
+  piiFindings: [
+    { type: 'phone', maskedHint: '98XXXX3210' },
+    { type: 'otp', maskedHint: '8XXXX1' },
+  ],
+  sanitizedText: 'Dear Customer, Your SBI account will be BLOCKED in 24 hours due to incomplete KYC. Update now: [URL_1]. For help call [PHONE_REDACTED]. Your OTP is [OTP_REDACTED]. Do not share. -SBI Team',
+  ruleFindings: [
+    { label: 'Account block threat', weight: 25, explanation: 'Threatens to block your account to create panic.' },
+    { label: 'Suspicious URL detected', weight: 20, explanation: 'Contains a link with a non-standard domain (.xyz).' },
+    { label: 'Urgency language', weight: 15, explanation: 'Uses "24 hours" deadline to rush your decision.' },
+    { label: 'Impersonates a bank', weight: 12, explanation: 'Claims to be from SBI but uses unofficial channels.' },
+  ],
+  disclaimer: 'KavachAI provides a heuristic risk assessment, not a guarantee.',
+};
 
-const SCAM_TYPES = [
-  'UPI Payment Fraud', 'KYC Phishing', 'Digital Arrest', 'Job/Task Scams',
-  'Investment Scams', 'Lottery/Prize Scams', 'Utility Disconnection', 'Remote Access Scams',
-];
-
+/* ═══════════════════════════════════════════
+   Landing Page
+   ═══════════════════════════════════════════ */
 export default function Landing() {
-  const [demoText, setDemoText] = useState('');
-  const [demoResult, setDemoResult] = useState(null);
-  const [demoLoading, setDemoLoading] = useState(false);
+  return (
+    <div className="min-h-screen bg-midnight">
+      <Nav />
+      <Hero />
+      <RedactionSection />
+      <HowItWorks />
+      <ReportPreview />
+      <FamilyAlertSection />
+      <PrivacyPromise />
+      <RadarTeaser />
+      <Footer />
+    </div>
+  );
+}
 
-  const runDemo = async (text, inputType = 'sms') => {
-    if (text.length < 20) {
-      toast.error('Text must be at least 20 characters');
-      return;
-    }
-    setDemoLoading(true);
-    setDemoResult(null);
+/* ─── Nav ─────────────────────────────────── */
+function Nav() {
+  return (
+    <nav className="fixed top-0 left-0 right-0 z-50 nav-glass">
+      <div className="max-w-6xl mx-auto px-5 py-3.5
+                      flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <Shield className="w-7 h-7 text-emerald" />
+          <span className="font-['Sora'] text-lg font-bold text-text">
+            KavachAI
+          </span>
+        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/login"
+            className="px-4 py-2 text-sm font-medium
+                       text-text-muted hover:text-text transition-colors">
+            Sign in
+          </Link>
+          <Link to="/register"
+            className="px-4 py-2 text-sm font-medium bg-emerald
+                       hover:bg-emerald-dim text-midnight rounded-lg
+                       transition-colors">
+            Get started
+          </Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ─── Hero ────────────────────────────────── */
+function Hero() {
+  const [activeSample, setActiveSample] = useState(0);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isFallback, setIsFallback] = useState(false);
+  const [phase, setPhase] = useState(0);
+  const prefersReducedMotion = useRef(
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  const runAnalysis = useCallback(async (sample) => {
+    setLoading(true);
+    setResult(null);
+    setPhase(0);
+    setIsFallback(false);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+
     try {
-      const { data } = await demoApi.analyze({ text, inputType });
-      setDemoResult(data.data);
-    } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Demo analysis failed');
+      const { data } = await demoApi.analyze({
+        text: sample.text,
+        inputType: sample.inputType,
+      });
+      clearTimeout(timeout);
+      setResult(data.data);
+      setIsFallback(false);
+    } catch {
+      clearTimeout(timeout);
+      if (sample.id === 'kyc') {
+        setResult(FALLBACK_RESULT);
+      } else {
+        setResult({
+          ...FALLBACK_RESULT,
+          finalScore: sample.isScam ? 65 : 8,
+          riskLevel: sample.isScam ? 'high' : 'low',
+          ruleScore: sample.isScam ? 65 : 8,
+          ruleFindings: sample.isScam
+            ? FALLBACK_RESULT.ruleFindings
+            : [],
+          piiSummary: {},
+          sanitizedText: sample.text,
+        });
+      }
+      setIsFallback(true);
     } finally {
-      setDemoLoading(false);
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    runAnalysis(SAMPLES[0]);
+  }, [runAnalysis]);
+
+  /* Orchestrated animation phases */
+  useEffect(() => {
+    if (loading || !result) return;
+    if (prefersReducedMotion.current) { setPhase(4); return; }
+
+    const timers = [
+      setTimeout(() => setPhase(1), 500),
+      setTimeout(() => setPhase(2), 1500),
+      setTimeout(() => setPhase(3), 2500),
+      setTimeout(() => setPhase(4), 3200),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [loading, result]);
+
+  const switchSample = (idx) => {
+    setActiveSample(idx);
+    runAnalysis(SAMPLES[idx]);
   };
 
-  const riskColors = { low: 'text-risk-low', medium: 'text-risk-medium', high: 'text-risk-high', critical: 'text-risk-critical' };
-  const riskBg = { low: 'risk-badge-low', medium: 'risk-badge-medium', high: 'risk-badge-high', critical: 'risk-badge-critical' };
-
   return (
-    <div className="min-h-screen bg-kavach-bg">
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="w-8 h-8 text-kavach-emerald" />
-            <span className="text-xl font-bold gradient-text">KavachAI</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link to="/login" className="px-4 py-2 text-sm font-medium text-kavach-text-muted hover:text-kavach-text transition-colors">
-              Sign In
-            </Link>
-            <Link to="/register" className="px-4 py-2 text-sm font-medium bg-kavach-emerald hover:bg-kavach-emerald-dark text-white rounded-lg transition-colors">
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="pt-28 pb-16 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-kavach-emerald/10 border border-kavach-emerald/20 text-kavach-emerald text-sm font-medium mb-6">
-            <Shield className="w-4 h-4" />
-            AI Security, Privacy & Trust
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
-            Check before you
-            <span className="gradient-text"> click, share, or pay</span>
+    <section className="pt-24 pb-12 sm:pt-32 sm:pb-20 px-5">
+      <div className="max-w-6xl mx-auto
+                      grid grid-cols-1 lg:grid-cols-2 gap-12
+                      items-center">
+        {/* Left: Copy */}
+        <div>
+          <h1 className="display-lg text-text mb-5">
+            Check before you click,{' '}
+            share, or&nbsp;pay.
           </h1>
-          <p className="text-lg sm:text-xl text-kavach-text-muted max-w-2xl mx-auto mb-8">
-            KavachAI defends you against digital fraud with explainable AI, privacy-first design, and real-time community threat intelligence.
+          <p className="text-text-muted text-lg mb-8 max-w-lg">
+            Paste a suspicious message and get an explainable
+            verdict in seconds — your data stays redacted,
+            always.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/register" className="px-8 py-3 bg-kavach-emerald hover:bg-kavach-emerald-dark text-white font-semibold rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-kavach-emerald/25 flex items-center gap-2">
-              Start Protecting Yourself <ArrowRight className="w-5 h-5" />
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to="/register"
+              className="px-6 py-3 bg-emerald hover:bg-emerald-dim
+                         text-midnight font-semibold rounded-lg
+                         transition-colors">
+              Check a message
             </Link>
-            <a href="#demo" className="px-8 py-3 border border-kavach-border hover:border-kavach-emerald/50 text-kavach-text font-medium rounded-xl transition-colors">
-              Try Demo
+            <a href="#how-it-works"
+               className="flex items-center gap-1.5 px-4 py-3
+                          text-text-muted hover:text-text text-sm
+                          font-medium transition-colors">
+              See how it works
+              <ArrowDown className="w-4 h-4" />
             </a>
           </div>
         </div>
-      </section>
 
-      {/* How it works */}
-      <section className="py-16 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-white mb-12">How KavachAI Protects You</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { step: '1', title: 'Paste suspicious content', desc: 'Paste the SMS, WhatsApp message, email, or call transcript you want to verify.' },
-              { step: '2', title: 'Privacy scan & preview', desc: 'KavachAI detects and redacts sensitive data locally. You see exactly what gets analyzed.' },
-              { step: '3', title: 'Get explainable verdict', desc: 'Receive a detailed risk report with evidence-backed red flags and practical actions.' },
-            ].map(item => (
-              <div key={item.step} className="relative p-6 rounded-2xl bg-kavach-surface border border-kavach-border hover:border-kavach-emerald/30 transition-colors">
-                <div className="w-10 h-10 rounded-xl bg-kavach-emerald/10 flex items-center justify-center text-kavach-emerald font-bold text-lg mb-4">
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{item.title}</h3>
-                <p className="text-kavach-text-muted text-sm">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-16 px-4 sm:px-6 bg-kavach-surface/50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-white mb-4">Privacy-First Protection</h2>
-          <p className="text-center text-kavach-text-muted mb-12 max-w-2xl mx-auto">
-            Every feature designed with your privacy as the top priority.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map(f => (
-              <div key={f.title} className="p-6 rounded-2xl bg-kavach-bg border border-kavach-border hover:border-kavach-emerald/20 transition-all duration-300 group">
-                <f.icon className="w-10 h-10 text-kavach-emerald mb-4 group-hover:scale-110 transition-transform" />
-                <h3 className="text-lg font-semibold text-white mb-2">{f.title}</h3>
-                <p className="text-kavach-text-muted text-sm">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Scam types */}
-      <section className="py-16 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-8">Scams We Detect</h2>
-          <div className="flex flex-wrap justify-center gap-3">
-            {SCAM_TYPES.map(type => (
-              <span key={type} className="px-4 py-2 rounded-full bg-kavach-surface border border-kavach-border text-sm text-kavach-text-muted hover:text-kavach-emerald hover:border-kavach-emerald/30 transition-colors cursor-default">
-                {type}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Live Demo */}
-      <section id="demo" className="py-16 px-4 sm:px-6 bg-kavach-surface/50">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-white mb-4">Try It Now — No Login Required</h2>
-          <p className="text-center text-kavach-text-muted mb-8">
-            Paste a suspicious message or try one of our synthetic samples below. Rules-only analysis, no data saved.
-          </p>
-
-          {/* Sample buttons */}
-          <div className="flex flex-wrap gap-2 mb-6 justify-center">
-            {SYNTHETIC_SAMPLES.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => { setDemoText(s.text); setDemoResult(null); }}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-kavach-surface-2 border border-kavach-border hover:border-kavach-emerald/30 text-kavach-text-muted hover:text-kavach-text transition-colors"
-              >
+        {/* Right: Phone Mockup */}
+        <div className="flex flex-col items-center">
+          <PhoneMockup
+            sample={SAMPLES[activeSample]}
+            result={result}
+            phase={phase}
+            loading={loading}
+            isFallback={isFallback}
+          />
+          {/* Sample switcher */}
+          <div className="flex gap-2 mt-5">
+            {SAMPLES.map((s, i) => (
+              <button key={s.id}
+                onClick={() => switchSample(i)}
+                className={`px-3 py-1.5 text-xs font-medium
+                  rounded-lg border transition-colors
+                  ${activeSample === i
+                    ? 'bg-emerald/10 text-emerald border-emerald/30'
+                    : 'bg-surface border-border text-text-muted hover:text-text'
+                  }`}>
                 {s.label}
               </button>
             ))}
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          {/* Textarea */}
-          <div className="relative mb-4">
-            <textarea
-              value={demoText}
-              onChange={e => setDemoText(e.target.value)}
-              placeholder="Paste a suspicious message here (20-1500 characters)..."
-              rows={5}
-              maxLength={1500}
-              className="w-full p-4 bg-kavach-bg border border-kavach-border rounded-xl text-kavach-text placeholder-kavach-text-muted/50 focus:outline-none focus:border-kavach-emerald/50 resize-none"
-            />
-            <span className="absolute bottom-3 right-3 text-xs text-kavach-text-muted">
-              {demoText.length}/1500
+/* ─── Phone Mockup (pure CSS/SVG) ─────────── */
+function PhoneMockup({ sample, result, phase, loading, isFallback }) {
+  if (loading) {
+    return (
+      <div className="w-[280px] sm:w-[300px]">
+        <div className="rounded-[32px] border-2 border-border-light
+                        bg-surface p-3 pb-4">
+          <div className="rounded-[24px] bg-midnight p-4 min-h-[380px]
+                          flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8
+                            border-t-2 border-emerald" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) return null;
+
+  const riskColor = {
+    low: 'text-risk-low',
+    medium: 'text-risk-medium',
+    high: 'text-risk-high',
+    critical: 'text-risk-critical',
+  };
+  const riskStroke = {
+    low: '#34d399',
+    medium: '#f5a623',
+    high: '#f97316',
+    critical: '#ef4444',
+  };
+  const riskBadgeClass = {
+    low: 'risk-low',
+    medium: 'risk-medium',
+    high: 'risk-high',
+    critical: 'risk-critical',
+  };
+  const riskVerdict = {
+    low: '✓ Appears safe — standard alert',
+    medium: '⚠ Suspicious — verify independently',
+    high: '⚠ Likely scam — do not engage',
+    critical: '⛔ Dangerous — do not respond',
+  };
+
+  const positiveFindings = (result.ruleFindings || [])
+    .filter(f => f.weight > 0)
+    .slice(0, 3);
+
+  return (
+    <div className="w-[280px] sm:w-[300px]" aria-label="Demo analysis">
+      {/* Phone shell */}
+      <div className="rounded-[32px] border-2 border-border-light
+                      bg-surface p-3 pb-4 shadow-2xl
+                      shadow-emerald/5">
+        {/* Notch */}
+        <div className="flex justify-center mb-2">
+          <div className="w-24 h-5 rounded-b-xl bg-midnight" />
+        </div>
+
+        {/* Screen */}
+        <div className="rounded-[24px] bg-midnight p-3
+                        min-h-[380px] space-y-3 overflow-hidden">
+          {/* SMS header */}
+          <div className="flex items-center gap-2 pb-2
+                          border-b border-border">
+            <Phone className="w-4 h-4 text-text-muted" />
+            <span className="text-xs text-text-muted font-medium">
+              {sample.inputType.toUpperCase()}
             </span>
+            {isFallback && (
+              <span className="ml-auto text-[10px] text-text-dim
+                              bg-surface-2 px-1.5 py-0.5 rounded">
+                Demo data
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={() => runDemo(demoText)}
-            disabled={demoLoading || demoText.length < 20}
-            className="w-full py-3 bg-kavach-emerald hover:bg-kavach-emerald-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            {demoLoading ? (
-              <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> Analyzing...</>
-            ) : (
-              <><Shield className="w-5 h-5" /> Analyze Message</>
-            )}
-          </button>
-
-          {/* Demo Result */}
-          {demoResult && (
-            <div className="mt-6 p-6 rounded-2xl bg-kavach-bg border border-kavach-border animate-fade-in">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Analysis Result</h3>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${riskBg[demoResult.riskLevel]}`}>
-                  {demoResult.riskLevel.toUpperCase()} ({demoResult.finalScore}/100)
+          {/* Message bubble */}
+          <div className={`text-[13px] leading-relaxed
+                          font-['Noto_Sans'] text-text
+                          transition-opacity duration-500
+                          ${phase >= 1 ? 'opacity-100' : 'opacity-0'}`}>
+            {phase >= 2
+              ? <AnnotatedText text={result.sanitizedText} />
+              : <span className="whitespace-pre-wrap">
+                  {sample.text}
                 </span>
-              </div>
+            }
+          </div>
 
-              {/* PII Summary */}
-              {Object.keys(demoResult.piiSummary).length > 0 && (
-                <div className="mb-4 p-3 rounded-lg bg-kavach-saffron/10 border border-kavach-saffron/20">
-                  <p className="text-sm font-medium text-kavach-saffron flex items-center gap-2">
-                    <Lock className="w-4 h-4" />
-                    Sensitive data detected and redacted:
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {Object.entries(demoResult.piiSummary).map(([type, count]) => (
-                      <span key={type} className="px-2 py-0.5 rounded bg-kavach-saffron/20 text-kavach-saffron text-xs font-medium">
-                        {type}: {count}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* PII chips */}
+          {phase >= 2 && result.piiSummary
+            && Object.keys(result.piiSummary).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(result.piiSummary).map(([t, c]) => (
+                <span key={t}
+                  className="px-2 py-0.5 rounded-md text-[10px]
+                             font-semibold bg-saffron/15
+                             text-saffron border border-saffron/25"
+                  style={{ animation: phase === 2
+                    ? 'chip-enter 0.3s ease-out both' : 'none' }}>
+                  <Lock className="w-2.5 h-2.5 inline mr-0.5" />
+                  {t}: {c} redacted
+                </span>
+              ))}
+            </div>
+          )}
 
-              {/* Rule findings */}
-              {demoResult.ruleFindings && demoResult.ruleFindings.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-semibold text-kavach-text-muted mb-2">Risk Indicators</h4>
-                  <div className="space-y-2">
-                    {demoResult.ruleFindings.filter(f => f.weight > 0).map((f, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-kavach-surface-2">
-                        <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${f.weight >= 20 ? 'text-kavach-red' : 'text-kavach-saffron'}`} />
-                        <div>
-                          <p className="text-sm font-medium text-kavach-text">{f.label} <span className="text-kavach-text-muted">(+{f.weight})</span></p>
-                          <p className="text-xs text-kavach-text-muted mt-0.5">{f.explanation}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* Risk gauge */}
+          {phase >= 3 && (
+            <div className="flex flex-col items-center pt-1">
+              <RiskGauge
+                score={result.finalScore}
+                level={result.riskLevel}
+                stroke={riskStroke[result.riskLevel]}
+                animate={phase === 3}
+              />
+              <p className={`text-xs font-semibold mt-1
+                            ${riskColor[result.riskLevel]}`}
+                 role="status" aria-live="polite">
+                {riskVerdict[result.riskLevel]}
+              </p>
+            </div>
+          )}
 
-              <p className="text-xs text-kavach-text-muted mt-4 italic">{demoResult.disclaimer}</p>
-              
-              <div className="mt-4 pt-4 border-t border-kavach-border text-center">
-                <Link to="/register" className="text-kavach-emerald hover:text-kavach-emerald-dark font-medium text-sm inline-flex items-center gap-1">
-                  Register for AI-powered analysis with more features <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+          {/* Red-flag chips */}
+          {phase >= 4 && positiveFindings.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {positiveFindings.map((f, i) => (
+                <span key={i}
+                  className="risk-badge risk-high text-[10px]"
+                  style={{
+                    animation: `chip-enter 0.3s ease-out ${i * 0.12}s both`,
+                  }}>
+                  <AlertTriangle className="w-3 h-3" />
+                  {f.label}
+                </span>
+              ))}
             </div>
           )}
         </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-20 px-4 sm:px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Protect Yourself & Your Family Today</h2>
-          <p className="text-kavach-text-muted mb-8">Free to use. Your data stays yours. Always.</p>
-          <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 bg-kavach-emerald hover:bg-kavach-emerald-dark text-white font-bold text-lg rounded-xl transition-all hover:shadow-lg hover:shadow-kavach-emerald/25">
-            Create Free Account <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 px-4 border-t border-kavach-border">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-kavach-text-muted">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-kavach-emerald" />
-            <span>KavachAI — Privacy-First Scam Defense</span>
-          </div>
-          <p>KavachAI provides heuristic risk assessments, not guarantees.</p>
-        </div>
-      </footer>
+      </div>
     </div>
+  );
+}
+
+/* Render sanitized text with placeholder highlights */
+function AnnotatedText({ text }) {
+  const parts = text.split(/(\[[A-Z_]+\])/g);
+  return (
+    <span className="whitespace-pre-wrap">
+      {parts.map((part, i) =>
+        /^\[.*\]$/.test(part) ? (
+          <span key={i}
+            className="inline-flex items-center gap-0.5 px-1
+                       py-0.5 mx-0.5 rounded bg-saffron/20
+                       text-saffron text-[11px] font-semibold
+                       align-baseline">
+            <Lock className="w-2.5 h-2.5" />
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </span>
+  );
+}
+
+/* Accessible SVG risk gauge */
+function RiskGauge({ score, level, stroke, animate }) {
+  const circumference = 220;
+  const dashoffset = circumference - (score / 100) * circumference;
+
+  return (
+    <svg width="100" height="58" viewBox="0 0 120 65"
+         role="img"
+         aria-label={`Risk score ${score} out of 100, ${level} risk`}>
+      <path d="M 10 60 A 50 50 0 0 1 110 60"
+            fill="none" stroke="#243049" strokeWidth="8"
+            strokeLinecap="round" />
+      <path d="M 10 60 A 50 50 0 0 1 110 60"
+            fill="none" stroke={stroke} strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashoffset}
+            style={animate ? {
+              animation: 'gauge-sweep 1s ease-out forwards',
+            } : {}} />
+      <text x="60" y="52" textAnchor="middle"
+            fill="#e8ecf4" fontSize="22" fontWeight="700"
+            fontFamily="Sora">
+        {score}
+      </text>
+      <text x="60" y="63" textAnchor="middle"
+            fill="#8896b3" fontSize="8">
+        /100
+      </text>
+    </svg>
+  );
+}
+
+/* ─── Redaction Section ───────────────────── */
+function RedactionSection() {
+  const original = `Dear Customer, Your SBI account will be
+BLOCKED in 24 hours. Update KYC now:
+http://sbi-kyc-update.xyz/verify
+
+Your Aadhaar: 2341 8765 9012
+Call: 9876543210
+OTP: 847291`;
+
+  const sanitized = `Dear Customer, Your SBI account will be
+BLOCKED in 24 hours. Update KYC now:
+[URL_1]
+
+Your Aadhaar: [AADHAAR_REDACTED]
+Call: [PHONE_REDACTED]
+OTP: [OTP_REDACTED]`;
+
+  return (
+    <section className="py-16 sm:py-24 px-5">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="display-md text-text mb-3 text-center">
+          What you paste vs. what the AI sees
+        </h2>
+        <p className="text-text-muted text-center mb-10 max-w-xl mx-auto">
+          Gemini only ever receives the right-hand side.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl bg-surface border border-border p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Eye className="w-4 h-4 text-text-muted" />
+              <span className="text-xs font-semibold text-text-muted
+                              uppercase tracking-wider">
+                Your original
+              </span>
+            </div>
+            <pre className="text-sm text-text font-['Noto_Sans']
+                           whitespace-pre-wrap leading-relaxed">
+              {original}
+            </pre>
+          </div>
+
+          <div className="rounded-xl bg-surface border border-emerald/20
+                         p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="w-4 h-4 text-emerald" />
+              <span className="text-xs font-semibold text-emerald
+                              uppercase tracking-wider">
+                What Gemini receives
+              </span>
+            </div>
+            <pre className="text-sm text-text font-['Noto_Sans']
+                           whitespace-pre-wrap leading-relaxed">
+              <AnnotatedText text={sanitized} />
+            </pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── How It Works ────────────────────────── */
+function HowItWorks() {
+  const steps = [
+    {
+      num: '1',
+      title: 'Paste',
+      desc: 'Drop any SMS, WhatsApp, email, or call transcript.',
+      snippet: (
+        <div className="rounded-lg bg-midnight border border-border
+                       p-3 text-xs text-text-muted font-mono">
+          <span className="text-text-dim">$</span>{' '}
+          Paste message here...
+        </div>
+      ),
+    },
+    {
+      num: '2',
+      title: 'Preview redactions',
+      desc: 'See exactly what gets removed before analysis.',
+      snippet: (
+        <div className="flex gap-1.5 flex-wrap">
+          <span className="px-2 py-0.5 rounded bg-saffron/15
+                          text-saffron text-[11px] font-semibold">
+            phone: 1
+          </span>
+          <span className="px-2 py-0.5 rounded bg-saffron/15
+                          text-saffron text-[11px] font-semibold">
+            aadhaar: 1
+          </span>
+          <span className="px-2 py-0.5 rounded bg-saffron/15
+                          text-saffron text-[11px] font-semibold">
+            otp: 1
+          </span>
+        </div>
+      ),
+    },
+    {
+      num: '3',
+      title: 'Explainable score',
+      desc: 'Every red flag backed by a quote from the actual text.',
+      snippet: (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3 h-3 text-risk-high" />
+            <span className="text-xs text-text">
+              Account block threat
+            </span>
+            <span className="text-[10px] text-text-muted">+25</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3 h-3 text-saffron" />
+            <span className="text-xs text-text">
+              Suspicious URL
+            </span>
+            <span className="text-[10px] text-text-muted">+20</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      num: '4',
+      title: 'Share a family alert',
+      desc: 'Copy a warning in English, Telugu, or Hindi.',
+      snippet: (
+        <div className="flex gap-2">
+          <button className="flex items-center gap-1 px-2 py-1
+                            rounded bg-surface-2 border border-border
+                            text-[11px] text-text-muted">
+            <Copy className="w-3 h-3" /> Copy
+          </button>
+          <button className="flex items-center gap-1 px-2 py-1
+                            rounded bg-green-700/20 border
+                            border-green-700/30
+                            text-[11px] text-green-400">
+            <Share2 className="w-3 h-3" /> WhatsApp
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <section id="how-it-works"
+             className="py-16 sm:py-24 px-5 bg-surface/40">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="display-md text-text mb-12 text-center">
+          How it works
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4
+                       gap-6">
+          {steps.map(s => (
+            <div key={s.num} className="space-y-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald/10
+                            flex items-center justify-center
+                            text-emerald font-['Sora'] font-bold
+                            text-sm">
+                {s.num}
+              </div>
+              <h3 className="font-['Sora'] font-semibold text-text">
+                {s.title}
+              </h3>
+              <p className="text-sm text-text-muted leading-relaxed">
+                {s.desc}
+              </p>
+              <div className="pt-1">{s.snippet}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Explainable Report Preview ──────────── */
+function ReportPreview() {
+  const findings = [
+    { label: 'Account block threat', weight: 25, max: 100 },
+    { label: 'Suspicious URL (.xyz)', weight: 20, max: 100 },
+    { label: 'Urgency (24 hours)', weight: 15, max: 100 },
+    { label: 'Bank impersonation', weight: 12, max: 100 },
+  ];
+
+  return (
+    <section className="py-16 sm:py-24 px-5">
+      <div className="max-w-3xl mx-auto">
+        <h2 className="display-md text-text mb-3 text-center">
+          Explainable, not a black box
+        </h2>
+        <p className="text-text-muted text-center mb-10">
+          Every risk factor shows its contribution and where
+          it was found in the text.
+        </p>
+
+        <div className="rounded-xl bg-surface border border-border
+                       p-5 sm:p-6 space-y-4">
+          {/* Score header */}
+          <div className="flex items-center justify-between">
+            <span className="display-sm text-text">Score breakdown</span>
+            <span className="risk-badge risk-high">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              HIGH — 72/100
+            </span>
+          </div>
+
+          {/* Score bars */}
+          <div className="space-y-3 pt-2">
+            {findings.map((f, i) => (
+              <div key={i}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5
+                                             text-risk-high" />
+                    <span className="text-sm text-text">{f.label}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px]
+                                   bg-emerald/10 text-emerald
+                                   font-semibold">
+                      ✓ verified in text
+                    </span>
+                  </div>
+                  <span className="text-xs text-text-muted
+                                 font-mono">+{f.weight}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-border">
+                  <div className="h-full rounded-full bg-risk-high"
+                       style={{ width: `${(f.weight / f.max) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Family Alert in 3 Languages ─────────── */
+function FamilyAlertSection() {
+  const [lang, setLang] = useState('en');
+  const [copied, setCopied] = useState(false);
+
+  const alerts = {
+    en: '⚠️ Warning: A fake "KYC update" SMS is circulating. It threatens to block your bank account and asks for OTP. No bank sends KYC links by SMS. Do not click, do not share OTP. Call 1930 to report.',
+    te: '⚠️ హెచ్చరిక: "KYC అప్‌డేట్" పేరుతో నకిలీ SMS వస్తోంది. మీ బ్యాంక్ ఖాతా బ్లాక్ అవుతుందని బెదిరిస్తుంది. ఏ బ్యాంకు SMS ద్వారా KYC లింక్‌లు పంపదు. క్లిక్ చేయకండి, OTP షేర్ చేయకండి. రిపోర్ట్ చేయడానికి 1930 కు కాల్ చేయండి.',
+    hi: '⚠️ चेतावनी: "KYC अपडेट" के नाम पर फर्जी SMS आ रहा है। यह आपका बैंक अकाउंट ब्लॉक होने की धमकी देता है। कोई भी बैंक SMS से KYC लिंक नहीं भेजता। क्लिक न करें, OTP शेयर न करें। रिपोर्ट के लिए 1930 पर कॉल करें।',
+  };
+
+  const copyAlert = () => {
+    navigator.clipboard.writeText(alerts[lang]);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <section className="py-16 sm:py-24 px-5 bg-surface/40">
+      <div className="max-w-2xl mx-auto">
+        <h2 className="display-md text-text mb-3 text-center">
+          Warn your family in their language
+        </h2>
+        <p className="text-text-muted text-center mb-8">
+          Share a plain-language warning via WhatsApp or text.
+        </p>
+
+        {/* Language tabs */}
+        <div className="flex justify-center gap-1 mb-4">
+          {[
+            { id: 'en', label: 'English' },
+            { id: 'te', label: 'తెలుగు' },
+            { id: 'hi', label: 'हिन्दी' },
+          ].map(l => (
+            <button key={l.id}
+              onClick={() => setLang(l.id)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg
+                transition-colors
+                ${lang === l.id
+                  ? 'bg-emerald/10 text-emerald border border-emerald/25'
+                  : 'bg-surface border border-border text-text-muted hover:text-text'
+                }`}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Alert card */}
+        <div className="rounded-xl bg-surface border border-border
+                       p-5">
+          <p className="text-sm text-text leading-relaxed mb-4
+                       font-['Noto_Sans']">
+            {alerts[lang]}
+          </p>
+          <div className="flex gap-2">
+            <button onClick={copyAlert}
+              className="flex items-center gap-1.5 px-3 py-2
+                        rounded-lg bg-surface-2 border border-border
+                        text-xs text-text-muted hover:text-text
+                        transition-colors font-medium">
+              {copied
+                ? <><Check className="w-3.5 h-3.5 text-emerald" /> Copied</>
+                : <><Copy className="w-3.5 h-3.5" /> Copy</>
+              }
+            </button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(alerts[lang])}`}
+               target="_blank" rel="noopener noreferrer"
+               className="flex items-center gap-1.5 px-3 py-2
+                         rounded-lg bg-green-700/15 border
+                         border-green-700/25 text-xs text-green-400
+                         font-medium hover:bg-green-700/25
+                         transition-colors">
+              <Share2 className="w-3.5 h-3.5" /> WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Privacy Promise ─────────────────────── */
+function PrivacyPromise() {
+  const claims = [
+    {
+      icon: Lock,
+      title: 'Redact before AI',
+      desc: 'Aadhaar, PAN, phone, OTP, card numbers — all replaced with placeholders before anything reaches Gemini.',
+    },
+    {
+      icon: Shield,
+      title: 'Hash-only community radar',
+      desc: 'Threat signals use SHA-256 fingerprints. No message text is stored or shared in the radar.',
+    },
+    {
+      icon: Download,
+      title: 'Export and delete anytime',
+      desc: 'Download all your data as JSON. Delete your account and everything cascades immediately.',
+    },
+  ];
+
+  return (
+    <section className="py-16 sm:py-24 px-5">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="display-md text-text mb-10 text-center">
+          Privacy promise
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {claims.map(c => (
+            <div key={c.title} className="space-y-3">
+              <c.icon className="w-8 h-8 text-emerald" />
+              <h3 className="font-['Sora'] font-semibold text-text">
+                {c.title}
+              </h3>
+              <p className="text-sm text-text-muted leading-relaxed">
+                {c.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Radar Teaser ────────────────────────── */
+function RadarTeaser() {
+  return (
+    <section className="py-16 sm:py-24 px-5 bg-surface/40">
+      <div className="max-w-2xl mx-auto text-center">
+        <h2 className="display-md text-text mb-3">
+          Community Threat Radar
+        </h2>
+        <p className="text-text-muted mb-6">
+          Anonymous, aggregated threat patterns from opt-in users.
+        </p>
+        <div className="rounded-xl bg-surface border border-border
+                       p-8 text-center">
+          <Shield className="w-12 h-12 text-text-dim mx-auto mb-3
+                            opacity-40" />
+          <p className="text-text-muted text-sm">
+            No community campaigns yet. Signals will appear here
+            as users analyze messages with radar enabled.
+          </p>
+        </div>
+        <Link to="/register"
+          className="inline-flex items-center gap-1.5 mt-6
+                     text-emerald hover:text-emerald-dim text-sm
+                     font-medium transition-colors">
+          Join the community
+          <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Footer ──────────────────────────────── */
+function Footer() {
+  return (
+    <footer className="py-8 px-5 border-t border-border">
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row
+                     items-center justify-between gap-3
+                     text-sm text-text-muted">
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4 text-emerald" />
+          <span>KavachAI</span>
+        </div>
+        <p>
+          KavachAI provides a heuristic risk assessment,
+          not a guarantee.
+        </p>
+      </div>
+    </footer>
   );
 }

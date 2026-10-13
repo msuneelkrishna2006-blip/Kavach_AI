@@ -1,103 +1,179 @@
 @import "tailwindcss";
 
-/* KavachAI Design Tokens */
+/* Google Fonts — loaded via index.html link tags */
+
+/* ================================================
+   KavachAI Design Tokens
+   ================================================ */
 @theme {
-  --color-kavach-bg: #0a0e1a;
-  --color-kavach-surface: #111827;
-  --color-kavach-surface-2: #1a2236;
-  --color-kavach-border: #1e293b;
-  --color-kavach-border-light: #334155;
-  --color-kavach-text: #e2e8f0;
-  --color-kavach-text-muted: #94a3b8;
-  --color-kavach-emerald: #10b981;
-  --color-kavach-emerald-dark: #059669;
-  --color-kavach-saffron: #f59e0b;
-  --color-kavach-red: #ef4444;
-  --color-kavach-red-dark: #dc2626;
-  --color-kavach-amber: #f59e0b;
-  --color-kavach-blue: #3b82f6;
-  --color-kavach-purple: #8b5cf6;
-  --color-kavach-cyan: #06b6d4;
-  
-  --color-risk-low: #10b981;
-  --color-risk-medium: #f59e0b;
+  /* Base palette */
+  --color-midnight: #0d1321;
+  --color-surface: #151d30;
+  --color-surface-2: #1b2640;
+  --color-surface-3: #21304f;
+  --color-border: #243049;
+  --color-border-light: #2e3f5e;
+
+  /* Text */
+  --color-text: #e8ecf4;
+  --color-text-muted: #8896b3;
+  --color-text-dim: #5c6b8a;
+
+  /* Brand */
+  --color-emerald: #34d399;
+  --color-emerald-dim: #059669;
+  --color-saffron: #f5a623;
+  --color-saffron-dim: #d48b0a;
+
+  /* Risk levels */
+  --color-risk-low: #34d399;
+  --color-risk-medium: #f5a623;
   --color-risk-high: #f97316;
   --color-risk-critical: #ef4444;
+
+  /* Semantic */
+  --color-red: #ef4444;
+  --color-blue: #3b82f6;
+  --color-purple: #8b5cf6;
+  --color-cyan: #06b6d4;
 }
 
-/* Base styles */
+/* ================================================
+   Base
+   ================================================ */
 @layer base {
-  * {
+  *, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
   }
-  
-  html {
-    scroll-behavior: smooth;
-  }
-  
+
+  html { scroll-behavior: smooth; }
+
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: var(--color-kavach-bg);
-    color: var(--color-kavach-text);
+    font-family: 'Noto Sans', system-ui, -apple-system, sans-serif;
+    background: var(--color-midnight);
+    color: var(--color-text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
   }
 
   ::selection {
-    background-color: rgba(16, 185, 129, 0.3);
-    color: white;
+    background: rgba(52, 211, 153, 0.25);
+    color: #fff;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-kavach-emerald);
+    outline: 2px solid var(--color-emerald);
     outline-offset: 2px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', 'Noto Sans', system-ui, sans-serif;
+    line-height: 1.25;
   }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--color-kavach-bg);
-}
+/* ================================================
+   Scrollbar
+   ================================================ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--color-midnight); }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-kavach-border-light);
+  background: var(--color-border-light);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-kavach-text-muted);
+
+/* ================================================
+   Display typography (Sora)
+   ================================================ */
+.display-lg {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.display-md {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+.display-sm {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); }
+/* ================================================
+   Risk badges — icon + text, never color alone
+   ================================================ */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.risk-low {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+.risk-medium {
+  background: rgba(245, 166, 35, 0.12);
+  color: #f5a623;
+  border: 1px solid rgba(245, 166, 35, 0.25);
+}
+.risk-high {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+.risk-critical {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
-@keyframes gauge-fill {
-  from { stroke-dashoffset: 283; }
+/* ================================================
+   Skeleton loader
+   ================================================ */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-surface-2) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 8px;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+/* ================================================
+   Hero phone animation
+   ================================================ */
+@keyframes gauge-sweep {
+  from { stroke-dashoffset: 220; }
 }
-
-.animate-slide-in {
-  animation: slideInLeft 0.3s ease-out;
+@keyframes chip-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -108,29 +184,19 @@
   }
 }
 
-/* Utility classes */
-.glass {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(30, 41, 59, 0.5);
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, #10b981, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.risk-badge-low { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
-.risk-badge-medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
-.risk-badge-high { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
-.risk-badge-critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
-
-/* Print stylesheet */
+/* ================================================
+   Print
+   ================================================ */
 @media print {
-  body { background: white; color: black; }
+  body { background: #fff; color: #111; }
   .no-print { display: none !important; }
-  .print-only { display: block !important; }
 }
 
+/* ================================================
+   Nav glassmorphism (only place we use blur)
+   ================================================ */
+.nav-glass {
+  background: rgba(13, 19, 33, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-border);
+}
